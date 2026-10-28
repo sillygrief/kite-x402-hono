@@ -13,9 +13,8 @@ export interface NonceGuardOptions {
   consumedTtlMs?: number;
 
   /**
-   * Maximum lease timeout for in-flight requests in milliseconds.
-   * If a request crashes or fails before settlement/rejection, the lease expires.
-   * Default: 60 seconds (60,000 ms).
+   * Legacy option, retained for configuration compatibility. Active leases no
+   * longer expire by time; the request owner must release or commit them.
    */
   inFlightTtlMs?: number;
 
@@ -78,13 +77,38 @@ export class PaymentNonceReplayGuard {
 
     this.entries.set(key, {
       status: "IN_FLIGHT",
-      expiresAt: now + this.inFlightTtlMs,
+      expiresAt: Number.POSITIVE_INFINITY,
     });
     return true;
   }
 
+  /** Acquire an owner-bound lease; stale owners cannot modify a replacement. */
+  public reserve(
+    payer: string,
+    nonce: string,
+    now: number = Date.now(),
+  ): {
+    commit: (at?: number) => void;
+    release: () => void;
+  } | null {
+    if (!this.acquire(payer, nonce, now)) return null;
+    const key = this.buildKey(payer, nonce);
+    const entry = this.entries.get(key)!;
+    return {
+      commit: (at = Date.now()) => {
+        if (this.entries.get(key) !== entry) return;
+        entry.status = "CONSUMED";
+        entry.expiresAt = at + this.consumedTtlMs;
+      },
+      release: () => {
+        if (this.entries.get(key) === entry && entry.status === "IN_FLIGHT")
+          this.entries.delete(key);
+      },
+    };
+  }
+
   /**
-   * Commits the nonce as permanently consumed upon successful payment settlement.
+   * Retains the nonce for consumedTtlMs when settlement begins or succeeds.
    */
   public commit(payer: string, nonce: string, now: number = Date.now()): void {
     const key = this.buildKey(payer, nonce);
@@ -142,16 +166,6 @@ export class PaymentNonceReplayGuard {
       if (entry.expiresAt <= now) {
         this.entries.delete(key);
       }
-    }
-  }
-
-  private forcePurgeOldest(): void {
-    const toDelete = Math.max(1, Math.floor(this.maxEntries * 0.1));
-    let count = 0;
-    for (const key of this.entries.keys()) {
-      this.entries.delete(key);
-      count++;
-      if (count >= toDelete) break;
     }
   }
 }

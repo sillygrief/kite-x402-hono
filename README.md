@@ -300,3 +300,5 @@ wrapper/configuration/test work is distinguished from upstream SDK functionality
 `/.well-known/x402` is this wrapper's discovery format, not an official x402 discovery schema. Payment challenges remain authoritative. `MAINTENANCE_MODE` is read at startup; restart to change it.
 
 Access logs omit query strings, bodies and payment signatures. `clientIp` is an unverified forwarded-header claim; do not use it for access decisions. JSON is recommended for production.
+
+Active nonce reservations remain held until their request finishes or settlement begins. The legacy `inFlightTtlMs` option is retained but does not evict active work. The middleware uses owner-bound reservations so an old request cannot release a replacement. Consumed retention remains process-local and time-limited; persistent or multi-process coordination belongs to the application.
