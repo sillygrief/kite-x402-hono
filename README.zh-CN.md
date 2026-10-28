@@ -123,6 +123,8 @@ Bun.serve({ port: config.port, fetch: app.fetch });
 - `/healthz` 只表示进程存活，不代表上游或 facilitator 已就绪。可用 `/readyz` 检查 facilitator 是否可达且支持所配置的网络。
 - 每个响应都带 `X-Request-ID` 头。调用方传入自己的 `x-request-id`（仅限字母、数字、`.`、`_`、`~`、`-`，最长 128 字符）会被原样回显并透传上游，使 agent、wrapper 与上游日志可用同一 ID 关联；不安全的值会被替换为新 UUID。
 
+活跃 nonce 租约随请求生命周期保留，不再由 `inFlightTtlMs` 到期回收。中间件通过拥有者绑定的租约释放或提交，旧请求无法修改替换租约。已消费记录仍为进程内、有限保留时间；持久化与多实例协调需要应用提供。
+
 ## 验证
 
 ### 并发准入限制（0.2.0 新增）
@@ -209,5 +211,3 @@ AI 工具参与了开发；BrK 审核并负责此贡献。项目自己的 Wrappe
 请求 ID 是调用方可控的关联标签，不能用作身份凭证或付款去重键。生成的 UUID 只标记代理响应；非法调用方 ID 不会透传上游。
 仅同时携带 Origin 和 Access-Control-Request-Method 的 OPTIONS 属于免费预检，其他 OPTIONS 仍需付款。
 代理会过滤上游的 CORS 响应头，保持自身来源策略；CORS 不是服务器端鉴权。跨域响应也暴露 X-Request-ID。
-
-活跃 nonce 租约随请求生命周期保留，不再由 `inFlightTtlMs` 到期回收。中间件通过拥有者绑定的租约释放或提交，旧请求无法修改替换租约。已消费记录仍为进程内、有限保留时间；持久化与多实例协调需要应用提供。
